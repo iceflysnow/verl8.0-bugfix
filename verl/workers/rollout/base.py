@@ -38,7 +38,7 @@ class BaseRollout(ABC):
         **kwargs,
     ):
         self.config = omega_conf_to_dataclass(config)
-        self.model_config: HFModelConfig = omega_conf_to_dataclass(model_config, dataclass_type=HFModelConfig)
+        self.model_config: HFModelConfig = omega_conf_to_dataclass(model_config)
         self.device_mesh = device_mesh
 
     @abstractmethod
@@ -54,12 +54,18 @@ class BaseRollout(ABC):
     async def update_weights(
         self,
         weights: Generator[tuple[str, torch.Tensor], None, None],
+        wire_format: str = "named_tensors",
         **kwargs,
     ):
         """Update the weights of the rollout model.
 
         Args:
-            weights: A generator that yields the name of the weight tensor and the tensor itself.
+            weights: A generator yielding ``(name, tensor)`` pairs for
+                ``named_tensors``, or ``(named_tensors, is_last)`` flushes for
+                ``delta_flush``.
+            wire_format: ``named_tensors`` for full tensors (the default), or
+                ``delta_flush`` for delta-engine flushes. Adapters must branch on
+                this value instead of treating a delta flush as named weights.
         """
         pass
 

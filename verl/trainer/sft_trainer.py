@@ -277,6 +277,12 @@ class SFTTrainer:
         else:
             batch_seqlens: torch.Tensor = data["attention_mask"].sum(dim=-1)
         batch_seqlens = batch_seqlens.to(self.device_name)  # (global_bsz // dp)
+        if self.engine.get_data_parallel_size() > 1:
+            output_tensor = torch.empty(
+                (batch_seqlens.shape[0] * self.engine.get_data_parallel_size(),),
+                dtype=batch_seqlens.dtype,
+                device=self.device_name,
+            )  # (global_bsz,)
 
         dp_group = self.engine.get_data_parallel_group()
         dp_size = self.engine.get_data_parallel_size()
@@ -377,6 +383,10 @@ class SFTTrainer:
                     self.training_client.start_profile()
                 # train for on batch
                 output = self.training_client.train_batch(data=data)
+                # SFT has one train_batch per step (no PPO-style mini-batch loop), so advancing
+                # the profiler here is the per-step boundary; it also drives a torch.profiler
+                # schedule when one is configured (its unit is one such training step).
+                self.training_client.step_profile()
 
                 if global_step == self.end_profile_step:
                     self.training_client.stop_profile()
